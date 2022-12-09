@@ -22,6 +22,9 @@ app.use('/api/v1/trxcuti', trxcutiRoutes);
 app.use('/api/v1/jeniscuti', jenisCutiRoutes);
 app.use('/api/v1/jatahcuti', jatahcutiRoutes);
 
-app.listen(8000, () => {
+
+
+
+app.listen(process.env.PORT, () => {
   console.log(`Server runnning on port 8000`);
 });
