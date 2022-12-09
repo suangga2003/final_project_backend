@@ -1,10 +1,26 @@
 const db = require("./../models");
 
+const tambahjeniscuti = async (req, res) => {
+  const { idjeniscuti, jeniskelamin, namacuti, maxhari, status } = req.body;
+  const resAdd = await db.jeniscuti.create({ idjeniscuti, jeniskelamin, namacuti, maxhari, status  });
+  return res.status(201).json({
+    message: "register data jenis cuti successfully!",
+    data: resAdd,
+  });
+};
 const tambahagama = async (req, res) => {
   const { kodeagama, agama, status } = req.body;
   const resAdd = await db.agama.create({ kodeagama, agama, status });
   return res.status(201).json({
     message: "register data agama successfully!",
+    data: resAdd,
+  });
+};
+const tambahrole = async (req, res) => {
+  const { roleId, roleName } = req.body;
+  const resAdd = await db.roles.create({ roleId, roleName });
+  return res.status(201).json({
+    message: "register data role successfully!",
     data: resAdd,
   });
 };
@@ -203,6 +219,8 @@ const getAllRole = (req, res) => {
     });
 };
 module.exports = {
+  tambahjeniscuti,
+  tambahrole,
   tambahagama,
   tambahjabatan,
   tambahunit,

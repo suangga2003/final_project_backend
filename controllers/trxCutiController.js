@@ -13,9 +13,17 @@ const insertTrxCuti = (req, res) => {
     status,
     approveby,
     approvalreason,
-    approvalstatus,
+    approvalstatus, sisaCuti,
   } = req.body;
 
+  if (durasi > sisaCuti)
+  {
+    return res.status(400).send({ message: "Durasi tidak boleh melebihi sisa cuti" });
+  }
+  if (durasi <1)
+  {
+    return res.status(400).send({ message: "Durasi tidak boleh kosong" });
+  }
   db.trxcuti
     .create({
       idcuti: uuidv4(),
@@ -31,6 +39,27 @@ const insertTrxCuti = (req, res) => {
       approvalreason,
       approvalstatus,
     })
+    .then(async (trxCuti) => {
+       const jatahCuti = await db.newjatahcuti.findOne({
+        where: { userid: userid, 
+                idjeniscuti:idjenisCUti },
+      });
+      //console.log (jatahCuti)
+      const sisacuti = jatahCuti.sisacuti - durasi;
+      const cutidigunakan = jatahCuti.cutidigunakan + durasi;
+
+      db.newjatahcuti
+        .update(
+          {
+            sisacuti,
+            cutidigunakan,
+          },
+          {
+            where: { userid:userid, idjeniscuti:idjenisCUti},
+          }
+        )
+      
+    })
     .then((trxCuti) => {
       res
         .status(200)
@@ -41,9 +70,6 @@ const insertTrxCuti = (req, res) => {
     });
 };
 
-const getCutibyTanggal =(req,res) =>{
-  
-}
 const getAllTrxCuti = (req, res) => {
   // #swagger.tags = ['alamat']
   /* #swagger.security = [{
@@ -107,7 +133,8 @@ const getTrxCutiByCutiId = (req, res) => {
     .then(async (trxCuti) => {
       const jenisCuti = await getJenisCutiById(trxCuti.idjenisCUti);
       const profile = await getProfileByUserId(trxCuti.userid);
-      const jatahcuti = await getJatahCutiByUserId(trxCuti.userid);
+      const jatahcuti = await getJatahCutiByUserIdJenis(trxCuti.userid,trxCuti.idjenisCUti);
+	  console.log(jatahcuti.sisacuti);
       const result = {
         ...trxCuti.dataValues,
         jeniscuti: jenisCuti.namacuti,
@@ -144,51 +171,41 @@ const getJatahCutiByUserId = async (userid) => {
   return jatahCuti;
 };
 
-const approveTrxCuti = (req, res) => {
-  const idcuti = req.params.idcuti;
-  const { approveby, approvalreason } = req.body;
-
-  db.trxcuti
-    .update(
-      {
-        status: 2,
-        approveby,
-        approvalreason,
-        approvalstatus: 2,
-      },
-      {
-        where: { idcuti: idcuti },
-      }
-    )
-    .then(async (trxCuti) => {
-      const trxCutiData = await db.trxcuti.findOne({
-        where: { idcuti: idcuti },
-      });
-      const jatahCuti = await db.jatahcuti.findOne({
-        where: { userid: trxCutiData.userid },
-      });
-      const sisacuti = jatahCuti.sisacuti - trxCutiData.durasi;
-      const cutidigunakan = jatahCuti.cutidigunakan + trxCutiData.durasi;
-      db.jatahcuti
-        .update(
-          {
-            sisacuti,
-            cutidigunakan,
-          },
-          {
-            where: { userid: trxCutiData.userid },
-          }
-        )
-        .then((jatahcuti) => {
-          res
-            .status(200)
-            .json({ message: "Data updated successfully", data: trxCuti });
-        });
-    })
-    .catch((err) => {
-      res.status(500).json({ message: err.message });
-    });
+const getJatahCutiByUserIdJenis = async (userid,idjeniscuti) => {
+  const jatahCuti = await db.newjatahcuti.findOne({
+    where: { userid: userid,
+            idjeniscuti:idjeniscuti },
+  });
+  // console.log(jatahCuti)
+  return jatahCuti;
 };
+
+const approveTrxCuti = (req, res) => {
+    const idcuti = req.params.idcuti;
+    const { approveby, approvalreason } = req.body;
+  
+    db.trxcuti
+      .update(
+        {
+          status: 2,
+          approveby,
+          approvalreason,
+          approvalstatus: 2,
+        },
+        {
+          where: { idcuti: idcuti },
+        }
+      )
+      .then((trxCuti) => {
+        res
+          .status(200)
+          .json({ message: "Data updated successfully", data: trxCuti });
+      })
+      
+      .catch((err) => {
+        res.status(500).json({ message: err.message });
+      });
+  };
 
 const rejectCuti = (req, res) => {
   const idcuti = req.params.idcuti;
@@ -206,11 +223,37 @@ const rejectCuti = (req, res) => {
         where: { idcuti: idcuti },
       }
     )
+    .then(async (trxcuti) => 
+    {
+      const trxCutiData = await db.trxcuti.findOne
+      ({
+        where: { idcuti: idcuti },
+      });
+        const jeniscuti = trxCutiData.idjenisCUti;
+        const durasi = trxCutiData.durasi;
+        const jatahcuti = await getJatahCutiByUserIdJenis(trxCutiData.userid,jeniscuti);
+        const sisacutibefore =jatahcuti.sisacuti;
+        const cutidigunakanbefore = jatahcuti.cutidigunakan;
+        const sisacuti = sisacutibefore + durasi;
+        const cutidigunakan = cutidigunakanbefore - durasi;
+        
+      db.newjatahcuti
+      .update(
+        {
+          sisacuti,
+          cutidigunakan,
+        },
+        {
+          where: { userid:trxCutiData.userid, idjeniscuti:jeniscuti},
+        }
+      )
+    })
     .then((trxCuti) => {
       res
         .status(200)
-        .json({ message: "Data updated successfully", data: trxCuti });
+        .json({ message: "Data Reject successfully", data: trxCuti });
     })
+
     .catch((err) => {
       res.status(500).json({ message: err.message });
     });
@@ -230,10 +273,35 @@ const cancelCuti = (req, res) => {
         where: { idcuti: idcuti },
       }
     )
+    .then(async (trxcuti) => 
+    {
+      const trxCutiData = await db.trxcuti.findOne
+      ({
+        where: { idcuti: idcuti },
+      });
+        const jeniscuti = trxCutiData.idjenisCUti;
+        const durasi = trxCutiData.durasi;
+        const jatahcuti = await getJatahCutiByUserIdJenis(trxCutiData.userid,jeniscuti);
+        const sisacutibefore =jatahcuti.sisacuti;
+        const cutidigunakanbefore = jatahcuti.cutidigunakan;
+        const sisacuti = sisacutibefore + durasi;
+        const cutidigunakan = cutidigunakanbefore - durasi;
+        
+      db.newjatahcuti
+      .update(
+        {
+          sisacuti,
+          cutidigunakan,
+        },
+        {
+          where: { userid:trxCutiData.userid, idjeniscuti:jeniscuti},
+        }
+      )
+    })
     .then((trxCuti) => {
       res
         .status(200)
-        .json({ message: "Data cuti berhasil dicancel", data: trxCuti });
+        .json({ message: "Data Cuti Berhasil di Cancel", data: trxCuti });
     })
     .catch((err) => {
       res.status(500).json({ message: err.message });
